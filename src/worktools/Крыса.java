@@ -10,7 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class Gateway {
+public class Крыса {
 
     public static void main(String[] args) throws InterruptedException, IOException {
         System.setProperty("jdk.virtualThreadScheduler.maxPoolSize", "1");
@@ -39,9 +39,7 @@ public class Gateway {
 //                            return s;
 //                        });
                         executorService.submit(() -> {
-                            try {
-                                @SuppressWarnings("resource")
-                                Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port));
+                            try (Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port))) {
                                 System.out.println("To wan: " + message.length);
                                 wanSocket.getOutputStream().write(message);
                             } catch (IOException e) {
@@ -50,9 +48,7 @@ public class Gateway {
                             }
                         });
                         executorService.submit(() -> {
-                            try {
-                                @SuppressWarnings("resource")
-                                Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port));
+                            try (Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port))) {
                                 byte[] buffer = new byte[65535];
                                 int responseLength;
                                 while ((responseLength = wanSocket.getInputStream().read(buffer)) > -1) {
@@ -68,10 +64,8 @@ public class Gateway {
                                 e.printStackTrace();
                                 throw new RuntimeException(e);
                             } finally {
-                                try {
-                                    wanSocketMap.remove(id).close();
-                                } catch (IOException ignored) {
-                                }
+                                //noinspection resource
+                                wanSocketMap.remove(id);
                             }
                         });
                     }
