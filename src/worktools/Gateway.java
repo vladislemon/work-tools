@@ -43,7 +43,10 @@ public class Gateway {
                                 @SuppressWarnings("resource")
                                 Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port));
                                 System.out.println("To wan: " + message.length);
-                                wanSocket.getOutputStream().write(message);
+                                synchronized (wanSocket) {
+                                    wanSocket.getOutputStream().write(message);
+                                    wanSocket.getOutputStream().flush();
+                                }
                             } catch (IOException e) {
                                 e.printStackTrace();
                                 throw new RuntimeException(e);
@@ -60,9 +63,12 @@ public class Gateway {
                                         continue;
                                     }
                                     System.out.println("From wan " + responseLength);
-                                    output.writeLong(id);
-                                    output.writeShort(responseLength);
-                                    output.write(buffer, 0, responseLength);
+                                    synchronized (output) {
+                                        output.writeLong(id);
+                                        output.writeShort(responseLength);
+                                        output.write(buffer, 0, responseLength);
+                                        output.flush();
+                                    }
                                 }
                             } catch (IOException e) {
                                 e.printStackTrace();

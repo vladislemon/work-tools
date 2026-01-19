@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class Router {
     public static void main(String[] args) throws IOException, InterruptedException {
         System.setProperty("jdk.virtualThreadScheduler.maxPoolSize", "1");
-        try (ServerSocket lanServerSocket = new ServerSocket(443);
+        try (ServerSocket lanServerSocket = new ServerSocket(3000);
              ServerSocket gatewayServerSocket = new ServerSocket(9999);
              Socket gatewaySocket = gatewayServerSocket.accept();
              ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
@@ -56,11 +56,14 @@ public class Router {
                                         continue;
                                     }
                                     System.out.println("To gateway: " + messageLength);
-                                    output.writeLong(id);
-                                    output.writeUTF(serverNames.getFirst());
-                                    output.writeInt(443); //todo support different ports?
-                                    output.writeShort(messageLength);
-                                    output.write(buffer, 0, messageLength);
+                                    synchronized (output) {
+                                        output.writeLong(id);
+                                        output.writeUTF(serverNames.getFirst());
+                                        output.writeInt(443); //todo support different ports?
+                                        output.writeShort(messageLength);
+                                        output.write(buffer, 0, messageLength);
+                                        output.flush();
+                                    }
                                 }
                             } catch (IOException e) {
                                 e.printStackTrace();
@@ -90,7 +93,10 @@ public class Router {
                             continue;
                         }
                         System.out.println("To lan: " + length);
-                        lanSocket.getOutputStream().write(message);
+                        synchronized (lanSocket) {
+                            lanSocket.getOutputStream().write(message);
+                            lanSocket.getOutputStream().flush();
+                        }
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
