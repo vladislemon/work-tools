@@ -32,16 +32,10 @@ public class Gateway {
                         if (message.length < length) {
                             break;
                         }
-//                        Socket wanSocket = wanSocketMap.compute(id, (i, s) -> {
-//                            if (s == null || s.isClosed()) {
-//                                return socket(host, port);
-//                            }
-//                            return s;
-//                        });
+                        @SuppressWarnings("resource")
+                        Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port));
                         executorService.submit(() -> {
                             try {
-                                @SuppressWarnings("resource")
-                                Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port));
                                 System.out.println("To wan: " + message.length);
                                 synchronized (wanSocket) {
                                     wanSocket.getOutputStream().write(message);
@@ -49,13 +43,15 @@ public class Gateway {
                                 }
                             } catch (IOException e) {
                                 e.printStackTrace();
+                                try {
+                                    wanSocketMap.remove(id).close();
+                                } catch (IOException ignored) {
+                                }
                                 throw new RuntimeException(e);
                             }
                         });
                         executorService.submit(() -> {
                             try {
-                                @SuppressWarnings("resource")
-                                Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port));
                                 byte[] buffer = new byte[65535];
                                 int responseLength;
                                 while ((responseLength = wanSocket.getInputStream().read(buffer)) > -1) {
