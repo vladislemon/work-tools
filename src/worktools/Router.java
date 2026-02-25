@@ -28,101 +28,109 @@ public class Router {
                 ));
         try (ServerSocketList lanServerSocketList = new ServerSocketList(portToHostMap.keySet());
              ServerSocket gatewayServerSocket = new ServerSocket(9999);
-             Socket gatewaySocket = gatewayServerSocket.accept();
              ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
         ) {
-            DataInputStream input = new DataInputStream(gatewaySocket.getInputStream());
-            DataOutputStream output = new DataOutputStream(gatewaySocket.getOutputStream());
-            Map<Long, Socket> lanSocketMap = new ConcurrentHashMap<>();
-            AtomicLong nextId = new AtomicLong();
-            for (ServerSocket lanServerSocket : lanServerSocketList) {
-                executorService.submit(() -> {
-                    try {
-                        while (true) {
-                            Socket lanSocket = lanServerSocket.accept();
-                            long id = nextId.getAndIncrement();
-                            lanSocketMap.put(id, lanSocket);
-                            // lan -> gateway
+            executorService.submit(() -> {
+                while (!Thread.currentThread().isInterrupted()) {
+                    try (Socket gatewaySocket = gatewayServerSocket.accept()) {
+                        DataInputStream input = new DataInputStream(gatewaySocket.getInputStream());
+                        DataOutputStream output = new DataOutputStream(gatewaySocket.getOutputStream());
+                        Map<Long, Socket> lanSocketMap = new ConcurrentHashMap<>();
+                        AtomicLong nextId = new AtomicLong();
+                        for (ServerSocket lanServerSocket : lanServerSocketList) {
                             executorService.submit(() -> {
                                 try {
-                                    BufferedInputStream lanInputStream = new BufferedInputStream(lanSocket.getInputStream());
-                                    String serverName;
-                                    int port;
-                                    String host = portToHostMap.get(lanServerSocket.getLocalPort());
-                                    String[] hostParts = host.split(":");
-                                    if (hostParts.length < 1) {
-                                        return;
-                                    }
-                                    if ("SNI".equals(hostParts[0])) {
-                                        lanInputStream.mark(4096);
-                                        List<String> serverNames = SNIReader.readServerNames(lanInputStream);
-                                        lanInputStream.reset();
-                                        if (serverNames.isEmpty()) {
-                                            return;
-                                        }
-                                        serverName = serverNames.getFirst();
-                                    } else {
-                                        serverName = hostParts[0];
-                                    }
-                                    if (hostParts.length > 1) {
-                                        port = Integer.parseInt(hostParts[1]);
-                                    } else {
-                                        port = 443;
-                                    }
-                                    System.out.println("New connection to " + serverName + ":" + port);
-                                    byte[] buffer = new byte[65535];
-                                    int messageLength;
-                                    while ((messageLength = lanInputStream.read(buffer)) > -1) {
-                                        if (messageLength == 0) {
-                                            continue;
-                                        }
-                                        System.out.println("To gateway: " + messageLength);
-                                        synchronized (output) {
-                                            output.writeLong(id);
-                                            output.writeUTF(serverName);
-                                            output.writeInt(port);
-                                            output.writeShort(messageLength);
-                                            output.write(buffer, 0, messageLength);
-                                            output.flush();
-                                        }
+                                    while (true) {
+                                        Socket lanSocket = lanServerSocket.accept();
+                                        long id = nextId.getAndIncrement();
+                                        lanSocketMap.put(id, lanSocket);
+                                        // lan -> gateway
+                                        executorService.submit(() -> {
+                                            try {
+                                                BufferedInputStream lanInputStream = new BufferedInputStream(lanSocket.getInputStream());
+                                                String serverName;
+                                                int port;
+                                                String host = portToHostMap.get(lanServerSocket.getLocalPort());
+                                                String[] hostParts = host.split(":");
+                                                if (hostParts.length < 1) {
+                                                    return;
+                                                }
+                                                if ("SNI".equals(hostParts[0])) {
+                                                    lanInputStream.mark(4096);
+                                                    List<String> serverNames = SNIReader.readServerNames(lanInputStream);
+                                                    lanInputStream.reset();
+                                                    if (serverNames.isEmpty()) {
+                                                        return;
+                                                    }
+                                                    serverName = serverNames.getFirst();
+                                                } else {
+                                                    serverName = hostParts[0];
+                                                }
+                                                if (hostParts.length > 1) {
+                                                    port = Integer.parseInt(hostParts[1]);
+                                                } else {
+                                                    port = 443;
+                                                }
+                                                System.out.println("New connection to " + serverName + ":" + port);
+                                                byte[] buffer = new byte[65535];
+                                                int messageLength;
+                                                while ((messageLength = lanInputStream.read(buffer)) > -1) {
+                                                    if (messageLength == 0) {
+                                                        continue;
+                                                    }
+                                                    System.out.println("To gateway: " + messageLength);
+                                                    synchronized (output) {
+                                                        output.writeLong(id);
+                                                        output.writeUTF(serverName);
+                                                        output.writeInt(port);
+                                                        output.writeShort(messageLength);
+                                                        output.write(buffer, 0, messageLength);
+                                                        output.flush();
+                                                    }
+                                                }
+                                            } catch (IOException e) {
+                                                e.printStackTrace();
+                                                throw new RuntimeException(e);
+                                            } finally {
+                                                try {
+                                                    lanSocketMap.remove(id).close();
+                                                } catch (IOException ignored) {
+                                                }
+                                            }
+                                        });
                                     }
                                 } catch (IOException e) {
                                     e.printStackTrace();
                                     throw new RuntimeException(e);
-                                } finally {
-                                    try {
-                                        lanSocketMap.remove(id).close();
-                                    } catch (IOException ignored) {
-                                    }
                                 }
                             });
                         }
-                    } catch (IOException e) {
+                        // gateway -> lan
+                        executorService.submit(() -> {
+                            try {
+                                while (true) {
+                                    long id = input.readLong();
+                                    int length = input.readUnsignedShort();
+                                    byte[] message = input.readNBytes(length);
+                                    Socket lanSocket = lanSocketMap.get(id);
+                                    if (lanSocket == null) {
+                                        continue;
+                                    }
+                                    System.out.println("To lan: " + length);
+                                    synchronized (lanSocket) {
+                                        lanSocket.getOutputStream().write(message);
+                                        lanSocket.getOutputStream().flush();
+                                    }
+                                }
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                                throw new RuntimeException(e);
+                            }
+                        });
+                    } catch (Exception e) {
                         e.printStackTrace();
-                        throw new RuntimeException(e);
+                        System.out.println("Awaiting new gateway connection");
                     }
-                });
-            }
-            // gateway -> lan
-            executorService.submit(() -> {
-                try {
-                    while (true) {
-                        long id = input.readLong();
-                        int length = input.readUnsignedShort();
-                        byte[] message = input.readNBytes(length);
-                        Socket lanSocket = lanSocketMap.get(id);
-                        if (lanSocket == null) {
-                            continue;
-                        }
-                        System.out.println("To lan: " + length);
-                        synchronized (lanSocket) {
-                            lanSocket.getOutputStream().write(message);
-                            lanSocket.getOutputStream().flush();
-                        }
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    throw new RuntimeException(e);
                 }
             });
 
