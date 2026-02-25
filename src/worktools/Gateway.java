@@ -78,7 +78,12 @@ public class Gateway {
                         }
                     } catch (IOException e) {
                         e.printStackTrace();
-                        System.out.println("Reconnecting");
+                        System.out.println("Reconnecting in 1 second");
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ex) {
+                            throw new RuntimeException(ex);
+                        }
                     }
                 }
             });
