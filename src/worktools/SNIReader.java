@@ -1,5 +1,6 @@
 package worktools;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -71,6 +72,15 @@ public class SNIReader {
         dataOutputStream.write(tlsRecord);
 
         return SNIReader.readServerNames(tlsRecord);
+    }
+
+    public static List<String> readServerNamesAndReset(BufferedInputStream inputStream) throws IOException {
+        inputStream.mark(4096);
+        try {
+            return readServerNames(inputStream);
+        } finally {
+            inputStream.reset();
+        }
     }
 
     public static List<String> readServerNames(InputStream inputStream) throws IOException {

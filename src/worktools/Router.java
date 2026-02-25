@@ -56,9 +56,7 @@ public class Router {
                                                     return;
                                                 }
                                                 if ("SNI".equals(hostParts[0])) {
-                                                    lanInputStream.mark(4096);
-                                                    List<String> serverNames = SNIReader.readServerNames(lanInputStream);
-                                                    lanInputStream.reset();
+                                                    List<String> serverNames = SNIReader.readServerNamesAndReset(lanInputStream);
                                                     if (serverNames.isEmpty()) {
                                                         return;
                                                     }
