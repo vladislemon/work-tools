@@ -27,7 +27,7 @@ public class Gateway {
                         String host = input.readUTF();
                         int port = input.readInt();
                         int length = input.readUnsignedShort();
-                        System.out.println("From gateway: " + length);
+//                        System.out.println("From gateway: " + length);
                         byte[] message = input.readNBytes(length);
                         if (message.length < length) {
                             break;
@@ -36,7 +36,7 @@ public class Gateway {
                         Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port));
                         executorService.submit(() -> {
                             try {
-                                System.out.println("To wan: " + message.length);
+//                                System.out.println("To wan: " + message.length);
                                 synchronized (wanSocket) {
                                     wanSocket.getOutputStream().write(message);
                                     wanSocket.getOutputStream().flush();
@@ -58,7 +58,7 @@ public class Gateway {
                                     if (responseLength == 0) {
                                         continue;
                                     }
-                                    System.out.println("From wan " + responseLength);
+//                                    System.out.println("From wan " + responseLength);
                                     synchronized (output) {
                                         output.writeLong(id);
                                         output.writeShort(responseLength);

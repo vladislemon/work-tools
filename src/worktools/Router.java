@@ -76,7 +76,7 @@ public class Router {
                                         if (messageLength == 0) {
                                             continue;
                                         }
-                                        System.out.println("To gateway: " + messageLength);
+//                                        System.out.println("To gateway: " + messageLength);
                                         synchronized (output) {
                                             output.writeLong(id);
                                             output.writeUTF(serverName);
@@ -114,7 +114,7 @@ public class Router {
                         if (lanSocket == null) {
                             continue;
                         }
-                        System.out.println("To lan: " + length);
+//                        System.out.println("To lan: " + length);
                         synchronized (lanSocket) {
                             lanSocket.getOutputStream().write(message);
                             lanSocket.getOutputStream().flush();
