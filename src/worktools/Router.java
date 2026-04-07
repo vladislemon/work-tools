@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -122,6 +123,32 @@ public class Router {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
+                    throw new RuntimeException(e);
+                }
+            });
+            //keyboard
+            executorService.submit(() -> {
+                try {
+                    Scanner scanner = new Scanner(System.in);
+                    while (scanner.hasNextLine()) {
+                        String line = scanner.nextLine();
+                        if ("reset".equals(line)) {
+                            System.out.println("Resetting...");
+                            synchronized (output) {
+                                for (Socket socket : lanSocketMap.values()) {
+                                    try {
+                                        socket.close();
+                                    } catch (Exception ignored) {
+                                    }
+                                }
+                                lanSocketMap.clear();
+                                output.writeLong(-1L);
+                            }
+                        } else {
+                            System.out.println("Unknown command: " + line);
+                        }
+                    }
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             });

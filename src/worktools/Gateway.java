@@ -24,6 +24,18 @@ public class Gateway {
                     DataOutputStream output = new DataOutputStream(routerSocket.getOutputStream());
                     while (true) {
                         long id = input.readLong();
+                        // handle reset command
+                        if (id == -1L) {
+                            System.out.println("Resetting...");
+                            for (Socket socket : wanSocketMap.values()) {
+                                try {
+                                    socket.close();
+                                } catch (Exception ignored) {
+                                }
+                            }
+                            wanSocketMap.clear();
+                            continue;
+                        }
                         String host = input.readUTF();
                         int port = input.readInt();
                         int length = input.readUnsignedShort();
