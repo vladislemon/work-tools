@@ -20,8 +20,8 @@ public class Gateway {
                 Socket routerSocket = null;
                 DataInputStream input = null;
                 DataOutputStream output = null;
-                try {
-                    while (true) {
+                while (true) {
+                    try {
                         if (routerSocket == null) {
                             routerSocket = new Socket("192.168.1.2", 9999);
                             input = new DataInputStream(routerSocket.getInputStream());
@@ -92,26 +92,26 @@ public class Gateway {
                                 }
                             }
                         });
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    for (Socket socket : wanSocketMap.values()) {
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        for (Socket socket : wanSocketMap.values()) {
+                            try {
+                                socket.close();
+                            } catch (Exception ignored) {
+                            }
+                        }
+                        wanSocketMap.clear();
                         try {
-                            socket.close();
+                            if (routerSocket != null) {
+                                routerSocket.close();
+                            }
                         } catch (Exception ignored) {
-                        }
-                    }
-                    wanSocketMap.clear();
-                    try {
-                        if (routerSocket != null) {
-                            routerSocket.close();
-                        }
-                    } catch (Exception ignored) {
-                    } finally {
-                        routerSocket = null;
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException ignored) {
+                        } finally {
+                            routerSocket = null;
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException ignored) {
+                            }
                         }
                     }
                 }
