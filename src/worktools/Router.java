@@ -129,7 +129,7 @@ public class Router {
                 }
             });
             //keyboard
-            executorService.submit(() -> {
+            Thread keyboardThread = new Thread(() -> {
                 try {
                     Scanner scanner = new Scanner(System.in);
                     while (scanner.hasNextLine()) {
@@ -158,6 +158,8 @@ public class Router {
                     throw new RuntimeException(e);
                 }
             });
+            keyboardThread.setDaemon(true);
+            keyboardThread.start();
 
             //noinspection ResultOfMethodCallIgnored
             executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
