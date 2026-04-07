@@ -14,19 +14,23 @@ public class Gateway {
 
     public static void main(String[] args) throws InterruptedException, IOException {
         System.setProperty("jdk.virtualThreadScheduler.maxPoolSize", "1");
-        try (Socket routerSocket = new Socket("192.168.1.2", 9999);
-             ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
-        ) {
+        try (ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor()) {
             Map<Long, Socket> wanSocketMap = new ConcurrentHashMap<>();
             executorService.submit(() -> {
+                Socket routerSocket = null;
+                DataInputStream input = null;
+                DataOutputStream output = null;
                 try {
-                    DataInputStream input = new DataInputStream(routerSocket.getInputStream());
-                    DataOutputStream output = new DataOutputStream(routerSocket.getOutputStream());
                     while (true) {
+                        if (routerSocket == null) {
+                            routerSocket = new Socket("192.168.1.2", 9999);
+                            input = new DataInputStream(routerSocket.getInputStream());
+                            output = new DataOutputStream(routerSocket.getOutputStream());
+                        }
                         long id = input.readLong();
                         // handle reset command
                         if (id == -1L) {
-                            System.out.println("Resetting...");
+                            System.out.println("Resetting " + wanSocketMap.size() + " sockets");
                             for (Socket socket : wanSocketMap.values()) {
                                 try {
                                     socket.close();
@@ -44,7 +48,6 @@ public class Gateway {
                         if (message.length < length) {
                             break;
                         }
-                        @SuppressWarnings("resource")
                         Socket wanSocket = wanSocketMap.computeIfAbsent(id, s -> socket(host, port));
                         executorService.submit(() -> {
                             try {
@@ -62,6 +65,7 @@ public class Gateway {
                                 throw new RuntimeException(e);
                             }
                         });
+                        DataOutputStream finalOutput = output;
                         executorService.submit(() -> {
                             try {
                                 byte[] buffer = new byte[65535];
@@ -71,11 +75,11 @@ public class Gateway {
                                         continue;
                                     }
 //                                    System.out.println("From wan " + responseLength);
-                                    synchronized (output) {
-                                        output.writeLong(id);
-                                        output.writeShort(responseLength);
-                                        output.write(buffer, 0, responseLength);
-                                        output.flush();
+                                    synchronized (finalOutput) {
+                                        finalOutput.writeLong(id);
+                                        finalOutput.writeShort(responseLength);
+                                        finalOutput.write(buffer, 0, responseLength);
+                                        finalOutput.flush();
                                     }
                                 }
                             } catch (IOException e) {
@@ -91,7 +95,25 @@ public class Gateway {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
-                    throw new RuntimeException(e);
+                    for (Socket socket : wanSocketMap.values()) {
+                        try {
+                            socket.close();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                    wanSocketMap.clear();
+                    try {
+                        if (routerSocket != null) {
+                            routerSocket.close();
+                        }
+                    } catch (Exception ignored) {
+                    } finally {
+                        routerSocket = null;
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ignored) {
+                        }
+                    }
                 }
             });
 

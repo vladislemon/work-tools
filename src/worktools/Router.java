@@ -27,11 +27,13 @@ public class Router {
                         entry -> Integer.parseInt(entry.getKey().substring(1)),
                         Map.Entry::getValue
                 ));
+        System.out.println("Listening on ports: " + portToHostMap);
         try (ServerSocketList lanServerSocketList = new ServerSocketList(portToHostMap.keySet());
              ServerSocket gatewayServerSocket = new ServerSocket(9999);
              Socket gatewaySocket = gatewayServerSocket.accept();
              ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
         ) {
+            System.out.println("Gateway connected");
             DataInputStream input = new DataInputStream(gatewaySocket.getInputStream());
             DataOutputStream output = new DataOutputStream(gatewaySocket.getOutputStream());
             Map<Long, Socket> lanSocketMap = new ConcurrentHashMap<>();
@@ -133,7 +135,7 @@ public class Router {
                     while (scanner.hasNextLine()) {
                         String line = scanner.nextLine();
                         if ("reset".equals(line)) {
-                            System.out.println("Resetting...");
+                            System.out.println("Resetting " + lanSocketMap.size() + " sockets");
                             synchronized (output) {
                                 for (Socket socket : lanSocketMap.values()) {
                                     try {
@@ -143,6 +145,10 @@ public class Router {
                                 }
                                 lanSocketMap.clear();
                                 output.writeLong(-1L);
+                            }
+                        } else if ("list".equals(line)) {
+                            for (Socket socket : lanSocketMap.values()) {
+                                System.out.println(socket);
                             }
                         } else {
                             System.out.println("Unknown command: " + line);
